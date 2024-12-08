@@ -1,0 +1,14 @@
+# set path
+$path = "C:\temp"
+
+# downloads and installs software
+# the computer will reboot
+
+try {
+  invoke-webrequest -uri https://ftp.hp.com/pub/softpaq/sp151501-152000/sp151930.exe -OutFile $path\sp143977.exe
+  & $path\sp143977.exe /s
+}
+catch {
+  Write-Host $_
+  exit 0
+}
