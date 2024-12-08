@@ -1,0 +1,160 @@
+# FortiClient EMS Installer
+# Written by Bryan Mattson - https://github.com/eskote
+
+# Set the filename and URL for the downloaded installer here
+$file = "C:\temp\FortiClient.msi"
+$Download = 'Enter the URL of the FortiClient.msi file here'
+ 
+# Credentials
+$username = "Enter the username"
+$password = "Enter the password"  | ConvertTo-SecureString -asPlainText -Force
+$cred = New-Object System.Management.Automation.PSCredential($username,$password)
+ 
+# Secure Download File Hosting Switch
+# Set to 'True' is downloading from File Hosting Server. Otherwise set to 'False' (Case Sensitive)
+$SecureDownload = 'True'
+ 
+# Force TLS 1.2. Not always necessary but Windows (10) Version below 1903 will default to TLS 1.1 or worse and fail.
+[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
+ 
+function DownloadFile
+{
+    if($SecureDownload -eq 'True'){
+        try {
+            Invoke-WebRequest -Uri $Download -Outfile $file -Credential $cred
+            } Catch {
+            Write-host "Secure Download Failed, trying unsecure download"
+            }
+    }
+    if($SecureDownload -eq 'False'){
+        try {
+            Invoke-WebRequest -Uri $Download -Outfile $file
+            } Catch {
+            exit 0
+            }
+    }
+}
+
+# Replace with your FortiClient.mst file
+$file2 = "C:\temp\FortiClient.mst"
+$Download2 = 'Replace with the forticlient.mst download URL'
+ 
+function DownloadFile2
+{
+    if($SecureDownload -eq 'True'){
+        try {
+            Invoke-WebRequest -Uri $Download2 -Outfile $file2 -Credential $cred
+            } Catch {
+            Write-host "Secure Download Failed, trying unsecure download"
+            }
+    }
+    if($SecureDownload -eq 'False'){
+        try {
+            Invoke-WebRequest -Uri $Download2 -Outfile $file2
+            } Catch {
+                exit 0
+            }
+    }
+}
+
+####---- Script Template zR ----####
+# OS Architecture
+$64bit ='false'
+$32bit = 'false'
+if ([System.IntPtr]::Size -eq 8){
+    $64bit = 'true'
+    $OSBit = '64'
+}
+if ([System.IntPtr]::Size -eq 4){
+    $32bit = 'true'
+    $OSBit ='32'
+}
+# TimeStamp Function
+function Get-TimeStamp {
+    return "[{0:MM/dd/yy} {0:hh:mm:ss}]" -f (Get-Date)
+}
+# Force TLS 1.2. Not always necessary but Windows (10) Version below 1903 will default to TLS 1.1 or worse and fail.
+[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
+## Standard Message Appendage
+$Global:nl = [System.Environment]::NewLine
+$Global:ErrorCount = 0
+$global:Output = '' 
+function ScriptMsg
+{
+  param ($Message)
+  $global:Output += "$(Get-TimeStamp) $Message"+$Global:nl
+}
+## Error Message + Error Count
+function ScriptError
+{
+  param ($Message)
+  $Global:ErrorCount += 1
+  $global:Output += "! - ERROR-LINE - $(Get-TimeStamp) $Message"+$Global:nl
+}
+## Success Exit (0)
+function ScriptSuccess
+{  
+  $Message = '----------'+$Global:nl+"Script SUCCESS : ErrorCount : $Global:ErrorCount"
+  $global:Output += $Message
+  Write-Host -Object "$global:Output"
+  Exit(0)
+}
+## Failure Exit (1)
+## Error Message + Error Count
+function ScriptFailure
+{  
+    $Message = '----------'+$Global:nl+"Script FAILURE : ErrorCount : $Global:ErrorCount"
+    $global:Output += $Message
+    Write-Host -Object "$global:Output"
+    Exit(1)
+}
+function ScriptCleanup
+{
+    Remove-Item $file
+    Remove-Item $file2
+}
+function GetService
+{
+    Get-Service -Name $servicename -ErrorAction SilentlyContinue   
+}
+
+# Check if Custom Fields Exists for Variables
+$path = "C:\Temp"
+$application = "FortiClient"
+$fortiClientVPNPath = "C:\Program Files\Fortinet\FortiClient"
+
+if (Test-Path -Path $fortiClientVPNPath\FortiClient.exe){      
+    ScriptMsg "$Application is already installed!"
+    ScriptSuccess
+}
+ElseIf(!(Test-Path -Path $fortiClientVPNPath\FortiClient.exe)){
+        ScriptMsg "$Application not found, continuing..."
+        ScriptMsg "OS Detection: $OSBit-Bit OS"
+        # Download the latest Installer.
+        ScriptMsg "Downloading last available $Application package ..."
+        try {
+        DownloadFile
+        DownloadFile2
+        } Catch {
+        ScriptError "$Application Error; Unable to download the installer."
+        ScriptError $_
+        ScriptFailure
+        }
+        if (Test-Path C:\temp\FortiClient.msi){
+            ScriptMsg "Installer Downloaded, starting the installation..."
+            msiexec.exe /qn /i $path\FortiClient.msi TRANSFORMS=$path\FortiClient.mst REBOOT=ReallySuppress DONT_PROMPT_REBOOT=1 /l $path\FortiClientInstall.txt
+            Start-Sleep 30
+            if (Test-Path -Path $fortiClientVPNPath\FortiClient.exe){      
+                ScriptMsg "$Application installation complete!"
+                ScriptCleanup
+                ScriptSuccess
+            }ElseIf(!(Test-Path -Path $fortiClientVPNPath\FortiClient.exe)){
+                ScriptError "$Application failed to install."
+                ScriptCleanup
+                ScriptFailure
+            }
+        }ElseIf(!(Test-Path -Path $fortiClientVPNPath\FortiClient.exe)){
+            ScriptError "$Application $OSBit-Bit Failed to Download."
+            ScriptFailure
+        }
+    }
