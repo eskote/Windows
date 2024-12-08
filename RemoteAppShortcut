@@ -1,0 +1,61 @@
+# Remote App Desktop Icon Deployment Script
+
+# Written by Bryan Mattson https://github.com/eskote
+
+# Creates REMOTEAPP Directory
+$targetdir = "c:\program files\REMOTEAPP"
+New-Item -ItemType "directory" -Path $targetdir -Force
+
+# Sets appName variable, enter the name of your app
+$appName = 'Enter the name of your app'
+
+# Set .ico url - this should be a publicly available link
+$icoURL = 'Replace with the full URL of your .ico file'
+
+# Checks to see if there is an existing $appName icon and shortcut and deletes existing files
+$path = "C:\Users\Public\Desktop\$appName.url"
+$targetpath = "c:\program files\REMOTEAPP\$appName.rdp"
+$iconlocation = "c:\program files\REMOTEAPP\$appName.ico"
+
+if (-not (Test-Path $path)) {
+    Write-Host "Desktop icon does not exist, continuing script"
+}else {
+    Remove-Item $path
+}
+
+if (-not (Test-Path $targetpath)) {
+    Write-Host "RDP file does not exist, continuing script"
+}else {
+    Remove-Item $targetpath
+}
+
+if (-not (Test-Path $iconlocation)) {
+    Write-Host "Icon file does not exist, continuing script"
+}else {
+    Remove-Item $iconlocation
+}
+
+# Downloads .ico file
+Invoke-WebRequest -Uri $icoURL -OutFile $targetdir\$appName.ico
+
+# Creates $appName RDP File
+$rdpFile=@"
+REPLACE
+WITH THE
+CONTENTS
+OF YOUR
+RDP FILE
+"@
+
+$rdpFile | Out-File "$targetdir\$appName.rdp"
+
+# Creates $appName Desktop shortcut
+$null = $WshShell = New-Object -comObject WScript.Shell
+$iconfile = "IconFile=" + $iconlocation
+$Shortcut = $WshShell.CreateShortcut($path)
+$Shortcut.TargetPath = $targetpath
+$Shortcut.Save()
+
+Add-Content $path "HotKey=0"
+Add-Content $path "$iconfile"
+Add-Content $path "IconIndex=0"
